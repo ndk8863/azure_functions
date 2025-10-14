@@ -6,10 +6,13 @@ import json
 import pandas as pd
 import os
 
+mediaType = "scores"
+
 url = "https://ndlsearch.ndl.go.jp/api/opensearch"
 params = {
-    "cnt": 5,
-    "creator":"夏目"
+    "cnt": 500,
+    "mediatype":mediaType
+    
 }
 
 res = requests.get(url,params = params)
@@ -20,11 +23,18 @@ for item in root.findall(".//item"):
     data = {
         "title": item.findtext("title"),
         "link": item.findtext("link"),
-        "creator": item.findtext("{*}creator"),  
-        "series": item.findtext("{*}seriesTitle"),
+        "description": item.findtext("description"),
+        "pubDate": item.findtext("pubDate"),
+        "dc_title": item.findtext("{*}title"),
+        "dcndl_titleTranscription>": item.findtext("{*}titleTranscription"),
+        "creator": item.findtext("{*}creator"),
+        "dcndl_creatorTranscription": item.findtext("{*}creatorTranscription"),
+        "dcndl_seriesTitle": item.findtext("{*}seriesTitle"),
         "publisher": item.findtext("{*}publisher"),
-        "date": item.findtext("{*}date"),
-        "description": item.findtext("description")
+        "digitized_publisher": item.findtext("{*}digitized_publisher"),
+        "dc_date": item.findtext("{*}date"),
+        "dcterms_issued": item.findtext("{*}issued"),
+        "dc_subject": item.findtext("{*}subject")
     }
     items.append(data)
 
@@ -33,7 +43,7 @@ df = pd.DataFrame(items)
 current_dir_path = os.path.dirname(os.path.abspath(__file__))
 parent_dir_path = os.path.abspath(os.path.join(current_dir_path,os.pardir))
 
-save_file_path = os.path.join(parent_dir_path,"save/tmp.csv")
+save_file_path = os.path.join(parent_dir_path,f"save/temp_{mediaType}.csv")
 
 df.to_csv(save_file_path,encoding='utf8')
 
