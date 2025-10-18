@@ -23,8 +23,9 @@ def hello_orchestrator(context):
     result3 = yield context.call_activity("hello", "London")
     result4 = yield context.call_activity("otukare", "Osaka")
     result5 = yield context.call_activity("ohayou", "Osaka")
+    result6 = yield context.call_activity("ohayou", "Tokyo")
 
-    return [result1, result2, result3, result4, result5]
+    return [result1, result2, result3, result4, result5, result6]
 
 # アクティビティ関数: 実際のビジネスロジックを定義:この例だと`Hello {都市の名前}`を応答 
 @myApp.activity_trigger(input_name="city")
@@ -41,6 +42,8 @@ def otukare(city: str):
 def ohayou(city: str):
     content = f"ohayou {city}"
     return f"{content} ?"
+
+
 
 # azure functionsのコード
 # app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
