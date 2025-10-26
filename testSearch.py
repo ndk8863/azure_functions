@@ -5,20 +5,41 @@ import xml.etree.ElementTree as ET
 import json
 import pandas as pd
 import os
+from datetime import datetime,timedelta
 
-mediaType = "scores"
+mediaType = 'score'
+items = []
 
 url = "https://ndlsearch.ndl.go.jp/api/opensearch"
+
+current = datetime.now()
+print(current)
+
+# titleはjsonリストで別途用意。
+
+yyyymm = current.strftime("%Y-%m")
+# yyyy = current.strftime("%Y")
 params = {
     "cnt": 500,
+    "dpid":"jpro",
+    "from":yyyymm
     "mediatype":mediaType
-    
-}
 
-res = requests.get(url,params = params)
-xml_data = res.text
-root = ET.fromstring(xml_data)
-items = []
+}
+try:
+    res = requests.get(url,params = params,timeout=20)
+except requests.exceptions.Timeout:
+    print("タイムアウトが発生しました")
+    print(f"パラメータ:{params}")
+
+
+if res.status_code == 200:
+    xml_data = res.text
+    root = ET.fromstring(xml_data)
+else:
+    print(f"{year}年の取得に失敗しました",res.status_code)
+
+
 for item in root.findall(".//item"):
     data = {
         "title": item.findtext("title"),
@@ -37,6 +58,7 @@ for item in root.findall(".//item"):
         "dc_subject": item.findtext("{*}subject")
     }
     items.append(data)
+print(f'月度:{yyyymm}')
 
 df = pd.DataFrame(items)
 
