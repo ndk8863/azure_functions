@@ -7,23 +7,23 @@ import pandas as pd
 import os
 from datetime import datetime,timedelta
 
-mediaType = 'score'
+mediaType = 'books'
+# 調査候補
+# periodicals
+publisher = '講談社'
 items = []
 
 url = "https://ndlsearch.ndl.go.jp/api/opensearch"
-
 current = datetime.now()
-print(current)
-
-# titleはjsonリストで別途用意。
 
 yyyymm = current.strftime("%Y-%m")
-# yyyy = current.strftime("%Y")
+yyyymmddhhmmss = current.strftime("%Y%m%d%H%M%S")
 params = {
     "cnt": 500,
     "dpid":"jpro",
-    "from":yyyymm
-    "mediatype":mediaType
+    "from":yyyymm,
+    "mediatype":mediaType,
+    "publisher":publisher
 
 }
 try:
@@ -37,7 +37,7 @@ if res.status_code == 200:
     xml_data = res.text
     root = ET.fromstring(xml_data)
 else:
-    print(f"{year}年の取得に失敗しました",res.status_code)
+    print(f"月度:{yyyymm}の取得に失敗しました",res.status_code)
 
 
 for item in root.findall(".//item"):
@@ -65,7 +65,7 @@ df = pd.DataFrame(items)
 current_dir_path = os.path.dirname(os.path.abspath(__file__))
 parent_dir_path = os.path.abspath(os.path.join(current_dir_path,os.pardir))
 
-save_file_path = os.path.join(parent_dir_path,f"save/temp_{mediaType}.csv")
+save_file_path = os.path.join(parent_dir_path,f"save/{mediaType}_{publisher}_{yyyymmddhhmmss}.csv")
 
 df.to_csv(save_file_path,encoding='utf8')
 
