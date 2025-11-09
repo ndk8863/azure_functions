@@ -6,3 +6,4 @@ azure-functions
 azure-functions-durable
 requests
 pandas
+azure-storage-blob

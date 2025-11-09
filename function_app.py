@@ -8,6 +8,8 @@ import pandas as pd
 import os
 from datetime import datetime,timedelta
 import time
+from azure.storage.blob import BlobServiceClient
+from io import StringIO
 
 
 myApp = df.DFApp(http_auth_level=func.AuthLevel.ANONYMOUS)
@@ -43,18 +45,20 @@ def save_current_media_data(mediaType,publisher):
         "publisher":publisher
     }
     try:
-        res = requests.get(url,params = params,timeout=20)
+        res = requests.get(url, params=params, timeout=20)
+        if res.status_code == 200:
+            xml_data = res.text
+            root = ET.fromstring(xml_data)
+        else:
+            print(f"月度:{yyyymm}の取得に失敗しました", res.status_code)
+            return  # エラー時は処理を中断
     except requests.exceptions.Timeout:
         print("タイムアウトが発生しました")
         print(f"パラメータ:{params}")
-
-
-    if res.status_code == 200:
-        xml_data = res.text
-        root = ET.fromstring(xml_data)
-    else:
-        print(f"月度:{yyyymm}の取得に失敗しました",res.status_code)
-
+        return  # タイムアウト時は処理を中断
+    except Exception as e:
+        print(f"APIリクエストでエラーが発生しました: {str(e)}")
+        return  # その他のエラー時も処理を中断
 
     for item in root.findall(".//item"):
         data = {
@@ -78,12 +82,53 @@ def save_current_media_data(mediaType,publisher):
 
     df = pd.DataFrame(items)
 
-    current_dir_path = os.path.dirname(os.path.abspath(__file__))
-    parent_dir_path = os.path.abspath(os.path.join(current_dir_path,os.pardir))
+    # Azure Blob Storageに保存
+    # 接続文字列は環境変数から取得（local.settings.jsonまたはAzure設定）
+    connection_string = os.getenv('AzureWebJobsStorage')
 
-    save_file_path = os.path.join(parent_dir_path,f"save/{mediaType}_{publisher}_{yyyymmddhhmmss}.csv")
+    if connection_string:
+        try:
+            # Blob Service Clientを作成
+            blob_service_client = BlobServiceClient.from_connection_string(connection_string)
 
-    df.to_csv(save_file_path,encoding='utf8')
+            # コンテナ名（存在しない場合は作成される）
+            container_name = "law"
+
+            # コンテナが存在しない場合は作成
+            try:
+                container_client = blob_service_client.get_container_client(container_name)
+                container_client.get_container_properties()
+            except Exception:
+                container_client = blob_service_client.create_container(container_name)
+
+            # CSVをメモリ上で作成
+            csv_buffer = StringIO()
+            df.to_csv(csv_buffer, encoding='utf-8', index=False)
+            csv_data = csv_buffer.getvalue()
+
+            # Blobにアップロード
+            blob_name = f"{publisher}/{mediaType}/{publisher}_{mediaType}_{yyyymmddhhmmss}.csv"
+            blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
+            blob_client.upload_blob(csv_data, overwrite=True)
+
+            print(f'ファイルをBlob Storageに保存しました: {blob_name}')
+        except Exception as e:
+            print(f'Blob Storageへの保存に失敗しました: {str(e)}')
+            # フォールバック: ローカルに保存
+            current_dir_path = os.path.dirname(os.path.abspath(__file__))
+            parent_dir_path = os.path.abspath(os.path.join(current_dir_path,os.pardir))
+            save_file_path = os.path.join(parent_dir_path,f"save/{mediaType}_{publisher}_{yyyymmddhhmmss}.csv")
+            os.makedirs(os.path.dirname(save_file_path), exist_ok=True)
+            df.to_csv(save_file_path,encoding='utf8')
+            print(f'ローカルに保存しました: {save_file_path}')
+    else:
+        print('AzureWebJobsStorage環境変数が設定されていません。ローカルに保存します。')
+        current_dir_path = os.path.dirname(os.path.abspath(__file__))
+        parent_dir_path = os.path.abspath(os.path.join(current_dir_path,os.pardir))
+        save_file_path = os.path.join(parent_dir_path,f"save/{mediaType}_{publisher}_{yyyymmddhhmmss}.csv")
+        os.makedirs(os.path.dirname(save_file_path), exist_ok=True)
+        df.to_csv(save_file_path,encoding='utf8')
+        print(f'ローカルに保存しました: {save_file_path}')
 
     time.sleep(5)
 
@@ -115,20 +160,6 @@ def save_current_book_orchestrator(context):
     yield context.call_activity("save_current_books_houbunsha", "芳文社")
 
 # アクティビティ関数: 実際のビジネスロジックを定義:この例だと`Hello {都市の名前}`を応答 
-@myApp.activity_trigger(input_name="city")
-def hello(city: str):
-    content = f"Hello {city}"
-    return f"{content} How are you?"
-
-@myApp.activity_trigger(input_name="city")
-def otukare(city: str):
-    content = f"otukare {city}"
-    return f"{content} genki?"
-
-@myApp.activity_trigger(input_name="city")
-def ohayou(city: str):
-    content = f"ohayou {city}"
-    return f"{content} ?"
 
 @myApp.activity_trigger(input_name="publisher")
 def save_current_books_syueisha(publisher):
